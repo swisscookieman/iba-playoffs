@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IBA Playoff Predictor</title>
+    <title>IBA Playoff Predicitor</title>
     <style>
         :root {
             --bg-color: #1a1b21;
@@ -13,6 +13,7 @@
             --text-muted: #a0a0a0;
             --border: #383a42;
             --success: #4caf50;
+            --view-accent: #e2b74a; /* Gold color for the view tab */
         }
 
         body {
@@ -52,6 +53,12 @@
             border-bottom: 3px solid var(--accent);
             margin-bottom: -2px;
         }
+        
+        /* Special coloring for View Tab */
+        .tab-btn[onclick*="view"].active {
+            color: var(--view-accent);
+            border-bottom: 3px solid var(--view-accent);
+        }
 
         .tab-content {
             display: none;
@@ -84,6 +91,28 @@
             padding: 15px;
             border-radius: 6px;
             border: 1px solid var(--border);
+        }
+        
+        /* View Mode Card Styling */
+        .view-card {
+            border-left: 3px solid var(--view-accent);
+            background: #222;
+        }
+        .view-winner {
+            color: var(--success);
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+        .view-loser {
+            color: var(--text-muted);
+            text-decoration: line-through;
+            font-size: 0.9em;
+        }
+        .view-score {
+            float: right;
+            color: var(--view-accent);
+            font-family: monospace;
+            font-weight: bold;
         }
 
         .matchup-title {
@@ -123,6 +152,12 @@
             width: 100%;
         }
 
+        button.action-btn.view-btn {
+            background-color: var(--view-accent);
+            color: #1a1b21;
+            font-weight: bold;
+        }
+
         button.action-btn:hover {
             filter: brightness(1.1);
         }
@@ -151,19 +186,14 @@
             font-size: 0.9rem;
             line-height: 1.6;
         }
-
-        .team-seed {
-            color: var(--accent);
-            font-weight: bold;
-            margin-right: 5px;
-        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="tabs">
-        <button class="tab-btn active" onclick="switchTab('pick')">IBA Playoff Bracket Maker</button>
+        <button class="tab-btn active" onclick="switchTab('pick')">IBA Bracket Maker</button>
+        <button class="tab-btn" onclick="switchTab('view')">View Bracket</button>
         <button class="tab-btn" onclick="switchTab('score')">Calculate Score</button>
     </div>
 
@@ -203,6 +233,38 @@
         <div id="export-result" class="result-box"></div>
     </div>
 
+    <div id="view" class="tab-content">
+        <div class="round-section">
+            <h2>Import Bracket</h2>
+            <label>Paste Bracket Code</label>
+            <input type="text" id="view-input-code" placeholder="Paste a code here to view the full bracket tree...">
+            <button class="action-btn view-btn" onclick="visualizeCode()">Load Bracket</button>
+        </div>
+
+        <div id="view-display-area" style="display:none;">
+            <div class="round-section">
+                <h2>Round 1 Results</h2>
+                <div class="matchup-grid" id="v-r1"></div>
+            </div>
+            <div class="round-section">
+                <h2>Round 2 Results</h2>
+                <div class="matchup-grid" id="v-r2"></div>
+            </div>
+            <div class="round-section">
+                <h2>Round 3 Results</h2>
+                <div class="matchup-grid" id="v-r3"></div>
+            </div>
+            <div class="round-section">
+                <h2>Round 4 Results</h2>
+                <div class="matchup-grid" id="v-r4"></div>
+            </div>
+            <div class="round-section" style="border-color: var(--view-accent);">
+                <h2 style="color: var(--view-accent);">Championship Result</h2>
+                <div class="matchup-grid" id="v-r5"></div>
+            </div>
+        </div>
+    </div>
+
     <div id="score" class="tab-content">
         <div class="round-section">
             <h2>Score Calculator</h2>
@@ -224,7 +286,6 @@
 
 <script>
     // --- DATA SETUP ---
-    // Structure mimics the image exactly.
     const conferences = {
         west: {
             seeds: {
@@ -242,15 +303,11 @@
         }
     };
 
-    // Helper to format scores
     const scoresBo5 = ["3-0", "3-1", "3-2"];
     const scoresBo7 = ["4-0", "4-1", "4-2", "4-3"];
-
-    // Global State to store picks
     let picks = {};
 
-    // Initial Matches (Hardcoded based on image logic)
-    // Round 1 is 8v9, 5v12, 6v11, 7v10
+    // Match Definitions
     const round1Matches = [
         { id: "w_r1_1", conf: "west", high: 8, low: 9, next: "w_r2_1", nextPos: "low" },
         { id: "w_r1_2", conf: "west", high: 5, low: 12, next: "w_r2_2", nextPos: "low" },
@@ -262,8 +319,6 @@
         { id: "e_r1_4", conf: "east", high: 7, low: 10, next: "e_r2_4", nextPos: "low" }
     ];
 
-    // Round 2 (Waiters vs Winners)
-    // 1 vs (8v9), 4 vs (5v12), 3 vs (6v11), 2 vs (7v10)
     const round2Matches = [
         { id: "w_r2_1", conf: "west", high: 1, lowSrc: "w_r1_1", next: "w_r3_1", nextPos: "high" },
         { id: "w_r2_2", conf: "west", high: 4, lowSrc: "w_r1_2", next: "w_r3_1", nextPos: "low" },
@@ -275,7 +330,6 @@
         { id: "e_r2_4", conf: "east", high: 2, lowSrc: "e_r1_4", next: "e_r3_2", nextPos: "low" },
     ];
 
-    // Round 3 (Conf Semis)
     const round3Matches = [
         { id: "w_r3_1", conf: "west", highSrc: "w_r2_1", lowSrc: "w_r2_2", next: "w_r4_1", nextPos: "high" },
         { id: "w_r3_2", conf: "west", highSrc: "w_r2_3", lowSrc: "w_r2_4", next: "w_r4_1", nextPos: "low" },
@@ -283,28 +337,25 @@
         { id: "e_r3_2", conf: "east", highSrc: "e_r2_3", lowSrc: "e_r2_4", next: "e_r4_1", nextPos: "low" },
     ];
 
-    // Round 4 (Conf Finals)
     const round4Matches = [
         { id: "w_r4_1", conf: "west", highSrc: "w_r3_1", lowSrc: "w_r3_2", next: "f_r5_1", nextPos: "high" },
         { id: "e_r4_1", conf: "east", highSrc: "e_r3_1", lowSrc: "e_r3_2", next: "f_r5_1", nextPos: "low" },
     ];
 
-    // Round 5 (Finals)
     const round5Matches = [
         { id: "f_r5_1", conf: "final", highSrc: "w_r4_1", lowSrc: "e_r4_1", next: null }
     ];
 
-    // --- INITIALIZATION ---
     function init() {
         renderRound1();
     }
 
     function getName(conf, seed) {
-        if(conf === 'final') return seed; // Logic handled elsewhere
+        if(conf === 'final') return seed;
         return conferences[conf].seeds[seed];
     }
 
-    // --- RENDERERS ---
+    // --- PICKER RENDERERS ---
 
     function createMatchupHTML(id, team1, team2, bestOf, nextRoundId) {
         const scores = bestOf === 5 ? scoresBo5 : scoresBo7;
@@ -340,7 +391,6 @@
     // --- LOGIC UPDATES ---
 
     function updateBracket(matchId, triggerNextLevel) {
-        // Save Pick
         const winnerVal = document.getElementById(`pick-${matchId}`).value;
         const scoreVal = document.getElementById(`score-${matchId}`).value;
         
@@ -349,7 +399,6 @@
         const [seed, conf] = winnerVal.split('|');
         picks[matchId] = { seed: parseInt(seed), conf: conf, score: scoreVal };
 
-        // Check if round is complete to unlock next
         if(triggerNextLevel === 'r2') checkRoundComplete(round1Matches, renderRound2, 'r2-section');
         if(triggerNextLevel === 'r3') checkRoundComplete(round2Matches, renderRound3, 'r3-section');
         if(triggerNextLevel === 'r4') checkRoundComplete(round3Matches, renderRound4, 'r4-section');
@@ -370,9 +419,7 @@
         const container = document.getElementById('r2-container');
         let html = '';
         round2Matches.forEach(m => {
-            // High seed is waiting
             const t1 = { seed: m.high, name: getName(m.conf, m.high), conf: m.conf };
-            // Low seed comes from prev round
             const prevPick = picks[m.lowSrc];
             const t2 = { seed: prevPick.seed, name: getName(prevPick.conf, prevPick.seed), conf: prevPick.conf };
             html += createMatchupHTML(m.id, t1, t2, 7, 'r3');
@@ -410,31 +457,28 @@
         const container = document.getElementById('r5-container');
         let html = '';
         round5Matches.forEach(m => {
-            const p1 = picks[m.highSrc]; // West Champ
+            const p1 = picks[m.highSrc]; 
             const t1 = { seed: p1.seed, name: getName(p1.conf, p1.seed), conf: p1.conf };
-            const p2 = picks[m.lowSrc]; // East Champ
+            const p2 = picks[m.lowSrc]; 
             const t2 = { seed: p2.seed, name: getName(p2.conf, p2.seed), conf: p2.conf };
             html += createMatchupHTML(m.id, t1, t2, 7, 'end');
         });
         container.innerHTML = html;
     }
 
-    // --- EXPORT/IMPORT ---
-
     function generateCode() {
-        // Ensure finals are picked
         if(!picks['f_r5_1']) {
             alert("Please complete the entire bracket first.");
             return;
         }
-        // Force update the final pick just in case
+        // Force update last pick
         const finalSelect = document.getElementById('pick-f_r5_1');
         const finalScore = document.getElementById('score-f_r5_1');
         const [seed, conf] = finalSelect.value.split('|');
         picks['f_r5_1'] = { seed: parseInt(seed), conf: conf, score: finalScore.value };
 
         const json = JSON.stringify(picks);
-        const code = btoa(json); // Simple Base64 encoding
+        const code = btoa(json);
         
         const resBox = document.getElementById('export-result');
         resBox.style.display = 'block';
@@ -445,10 +489,101 @@
         document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active'));
         document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
         document.getElementById(tab).classList.add('active');
-        // Find the button with onclick containing the tab name
         const btns = document.getElementsByClassName('tab-btn');
         for(let b of btns) {
             if(b.getAttribute('onclick').includes(tab)) b.classList.add('active');
+        }
+    }
+
+    // --- VIEW / VISUALIZER LOGIC (NEW) ---
+
+    function createViewCard(t1, t2, winnerData) {
+        // Determine who is winner/loser for styling
+        const t1IsWinner = (t1.seed === winnerData.seed && t1.conf === winnerData.conf);
+        
+        const t1Class = t1IsWinner ? 'view-winner' : 'view-loser';
+        const t2Class = !t1IsWinner ? 'view-winner' : 'view-loser';
+
+        return `
+        <div class="matchup-card view-card">
+            <span class="view-score">${winnerData.score}</span>
+            <div class="${t1Class}">${t1.seed}. ${t1.name}</div>
+            <div class="${t2Class}">${t2.seed}. ${t2.name}</div>
+        </div>`;
+    }
+
+    function visualizeCode() {
+        const inputCode = document.getElementById('view-input-code').value.trim();
+        if(!inputCode) { alert("Please enter a code"); return; }
+
+        try {
+            const data = JSON.parse(atob(inputCode));
+            document.getElementById('view-display-area').style.display = 'block';
+
+            // R1
+            let html = '';
+            round1Matches.forEach(m => {
+                const t1 = { seed: m.high, name: getName(m.conf, m.high), conf: m.conf };
+                const t2 = { seed: m.low, name: getName(m.conf, m.low), conf: m.conf };
+                if(data[m.id]) html += createViewCard(t1, t2, data[m.id]);
+            });
+            document.getElementById('v-r1').innerHTML = html;
+
+            // R2
+            html = '';
+            round2Matches.forEach(m => {
+                // Determine teams based on stored picks
+                const t1 = { seed: m.high, name: getName(m.conf, m.high), conf: m.conf }; // Waiting seed
+                const prev = data[m.lowSrc];
+                if(prev && data[m.id]) {
+                    const t2 = { seed: prev.seed, name: getName(prev.conf, prev.seed), conf: prev.conf };
+                    html += createViewCard(t1, t2, data[m.id]);
+                }
+            });
+            document.getElementById('v-r2').innerHTML = html;
+
+            // R3
+            html = '';
+            round3Matches.forEach(m => {
+                const p1 = data[m.highSrc];
+                const p2 = data[m.lowSrc];
+                if(p1 && p2 && data[m.id]) {
+                    const t1 = { seed: p1.seed, name: getName(p1.conf, p1.seed), conf: p1.conf };
+                    const t2 = { seed: p2.seed, name: getName(p2.conf, p2.seed), conf: p2.conf };
+                    html += createViewCard(t1, t2, data[m.id]);
+                }
+            });
+            document.getElementById('v-r3').innerHTML = html;
+
+            // R4
+            html = '';
+            round4Matches.forEach(m => {
+                const p1 = data[m.highSrc];
+                const p2 = data[m.lowSrc];
+                if(p1 && p2 && data[m.id]) {
+                    const t1 = { seed: p1.seed, name: getName(p1.conf, p1.seed), conf: p1.conf };
+                    const t2 = { seed: p2.seed, name: getName(p2.conf, p2.seed), conf: p2.conf };
+                    html += createViewCard(t1, t2, data[m.id]);
+                }
+            });
+            document.getElementById('v-r4').innerHTML = html;
+
+            // R5
+            html = '';
+            round5Matches.forEach(m => {
+                const p1 = data[m.highSrc];
+                const p2 = data[m.lowSrc];
+                if(p1 && p2 && data[m.id]) {
+                    const t1 = { seed: p1.seed, name: getName(p1.conf, p1.seed), conf: p1.conf };
+                    const t2 = { seed: p2.seed, name: getName(p2.conf, p2.seed), conf: p2.conf };
+                    html += createViewCard(t1, t2, data[m.id]);
+                }
+            });
+            document.getElementById('v-r5').innerHTML = html;
+
+        } catch (e) {
+            alert("Invalid Code");
+            console.error(e);
         }
     }
 
@@ -470,7 +605,6 @@
             let totalScore = 0;
             let log = "<ul>";
 
-            // Helper to check match
             const checkMatch = (id, roundName, roundVal) => {
                 if(!playerPicks[id] || !realPicks[id]) return;
 
@@ -480,16 +614,13 @@
                 const rTeam = `${r.seed} ${r.conf}`;
 
                 if(pTeam === rTeam) {
-                    // Correct Winner
                     let pts = 1; 
                     let note = `Correct Winner (${getName(p.conf, p.seed)})`;
                     
-                    // Bonuses based on rounds
-                    if(id.includes('r3')) { pts += 2; note += " + Conference Finalist Bonus (2pts)"; } // Round 3 winners go to Conf Finals
-                    if(id.includes('r4')) { pts += 3; note += " + Finalist Bonus (3pts)"; } // Round 4 winners go to Finals
-                    if(id.includes('r5')) { pts = 4; note = "CHAMPION PREDICTED (4pts)"; } // Override for champ
+                    if(id.includes('r3')) { pts += 2; note += " + Conference Finalist Bonus (2pts)"; }
+                    if(id.includes('r4')) { pts += 3; note += " + Finalist Bonus (3pts)"; }
+                    if(id.includes('r5')) { pts = 4; note = "CHAMPION PREDICTED (4pts)"; }
 
-                    // Series Score Bonus
                     if(p.score === r.score) {
                         pts += 3;
                         note += " + Exact Score Bonus (3pts)";
@@ -500,16 +631,10 @@
                 }
             };
 
-            // Iterate rounds
-            // Round 1
             round1Matches.forEach(m => checkMatch(m.id, "Round 1", 1));
-            // Round 2
             round2Matches.forEach(m => checkMatch(m.id, "Round 2", 1));
-            // Round 3 (Winners are Conf Finalists)
             round3Matches.forEach(m => checkMatch(m.id, "Round 3", 1));
-            // Round 4 (Winners are Finalists)
             round4Matches.forEach(m => checkMatch(m.id, "Conf Finals", 1));
-            // Finals
             checkMatch("f_r5_1", "League Finals", 1);
 
             log += "</ul>";
@@ -524,7 +649,6 @@
         }
     }
 
-    // Run Init
     init();
 
 </script>

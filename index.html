@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IBA Playoff Predictor</title>
+    <style>
+        :root {
+            --bg-color: #1a1b21;
+            --card-bg: #25262e;
+            --accent: #4a90e2;
+            --text-main: #e0e0e0;
+            --text-muted: #a0a0a0;
+            --border: #383a42;
+            --success: #4caf50;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            margin: 0;
+            padding: 20px;
+        }
+
+        /* Layout & Tabs */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--border);
+        }
+
+        .tab-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            padding: 15px 25px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            color: var(--accent);
+            border-bottom: 3px solid var(--accent);
+            margin-bottom: -2px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Bracket Grid */
+        .round-section {
+            background-color: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border: 1px solid var(--border);
+        }
+
+        h2 { border-bottom: 1px solid var(--border); padding-bottom: 10px; margin-top: 0; color: var(--accent); }
+        h3 { color: var(--text-muted); font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; }
+
+        .matchup-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
+        }
+
+        .matchup-card {
+            background: #2f313a;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .matchup-title {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        /* Form Elements */
+        select, input {
+            background-color: #1a1b21;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            display: block;
+        }
+
+        button.action-btn {
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 100%;
+        }
+
+        button.action-btn:hover {
+            filter: brightness(1.1);
+        }
+
+        /* Results Area */
+        .result-box {
+            background: #000;
+            padding: 15px;
+            font-family: monospace;
+            word-break: break-all;
+            border: 1px solid var(--border);
+            margin-top: 10px;
+            display: none;
+            color: var(--success);
+        }
+
+        .score-display {
+            font-size: 2rem;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            color: var(--success);
+        }
+
+        .breakdown {
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .team-seed {
+            color: var(--accent);
+            font-weight: bold;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('pick')">IBA Playoff Bracket Maker</button>
+        <button class="tab-btn" onclick="switchTab('score')">Calculate Score</button>
+    </div>
+
+    <div id="pick" class="tab-content active">
+        <div class="round-section">
+            <h2>Round 1 (Play-in Round)</h2>
+            <h3>Best of 5</h3>
+            <div class="matchup-grid" id="r1-container">
+                </div>
+        </div>
+
+        <div class="round-section" id="r2-section" style="opacity: 0.5; pointer-events: none;">
+            <h2>Round 2 (Conference Quarterfinals)</h2>
+            <h3>Best of 7 (Top Seeds Enter)</h3>
+            <div class="matchup-grid" id="r2-container"></div>
+        </div>
+
+        <div class="round-section" id="r3-section" style="opacity: 0.5; pointer-events: none;">
+            <h2>Round 3 (Conference Semifinals)</h2>
+            <h3>Best of 7</h3>
+            <div class="matchup-grid" id="r3-container"></div>
+        </div>
+
+        <div class="round-section" id="r4-section" style="opacity: 0.5; pointer-events: none;">
+            <h2>Round 4 (Conference Finals)</h2>
+            <h3>Best of 7</h3>
+            <div class="matchup-grid" id="r4-container"></div>
+        </div>
+
+        <div class="round-section" id="r5-section" style="opacity: 0.5; pointer-events: none;">
+            <h2>Round 5 (League Finals)</h2>
+            <h3>Best of 7</h3>
+            <div class="matchup-grid" id="r5-container"></div>
+        </div>
+
+        <button class="action-btn" onclick="generateCode()">Export Bracket Code</button>
+        <div id="export-result" class="result-box"></div>
+    </div>
+
+    <div id="score" class="tab-content">
+        <div class="round-section">
+            <h2>Score Calculator</h2>
+            <label>Perfect Bracket Code (Official Results)</label>
+            <input type="text" id="perfect-code" placeholder="Paste the code for the correct outcomes...">
+            
+            <label>Player Bracket Code</label>
+            <input type="text" id="player-code" placeholder="Paste the player's code...">
+
+            <button class="action-btn" onclick="calculateScore()">Calculate</button>
+        </div>
+
+        <div id="score-output" class="round-section" style="display:none;">
+            <div class="score-display">Total Score: <span id="final-score">0</span></div>
+            <div class="breakdown" id="score-breakdown"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- DATA SETUP ---
+    // Structure mimics the image exactly.
+    const conferences = {
+        west: {
+            seeds: {
+                1: "Los Angeles", 2: "Geneva", 3: "Madrid", 4: "London",
+                5: "New York", 6: "Berlin", 7: "Hawaii", 8: "Vancouver",
+                9: "Mexico City", 10: "Lima", 11: "Belgrade", 12: "Buenos Aires"
+            }
+        },
+        east: {
+            seeds: {
+                1: "Wellington", 2: "Manila", 3: "Beijing", 4: "Istanbul",
+                5: "Jakarta", 6: "Singapore", 7: "Kaunas", 8: "Cairo",
+                9: "Moscow", 10: "Johannesburg", 11: "Riyadh", 12: "Seoul"
+            }
+        }
+    };
+
+    // Helper to format scores
+    const scoresBo5 = ["3-0", "3-1", "3-2"];
+    const scoresBo7 = ["4-0", "4-1", "4-2", "4-3"];
+
+    // Global State to store picks
+    let picks = {};
+
+    // Initial Matches (Hardcoded based on image logic)
+    // Round 1 is 8v9, 5v12, 6v11, 7v10
+    const round1Matches = [
+        { id: "w_r1_1", conf: "west", high: 8, low: 9, next: "w_r2_1", nextPos: "low" },
+        { id: "w_r1_2", conf: "west", high: 5, low: 12, next: "w_r2_2", nextPos: "low" },
+        { id: "w_r1_3", conf: "west", high: 6, low: 11, next: "w_r2_3", nextPos: "low" },
+        { id: "w_r1_4", conf: "west", high: 7, low: 10, next: "w_r2_4", nextPos: "low" },
+        { id: "e_r1_1", conf: "east", high: 8, low: 9, next: "e_r2_1", nextPos: "low" },
+        { id: "e_r1_2", conf: "east", high: 5, low: 12, next: "e_r2_2", nextPos: "low" },
+        { id: "e_r1_3", conf: "east", high: 6, low: 11, next: "e_r2_3", nextPos: "low" },
+        { id: "e_r1_4", conf: "east", high: 7, low: 10, next: "e_r2_4", nextPos: "low" }
+    ];
+
+    // Round 2 (Waiters vs Winners)
+    // 1 vs (8v9), 4 vs (5v12), 3 vs (6v11), 2 vs (7v10)
+    const round2Matches = [
+        { id: "w_r2_1", conf: "west", high: 1, lowSrc: "w_r1_1", next: "w_r3_1", nextPos: "high" },
+        { id: "w_r2_2", conf: "west", high: 4, lowSrc: "w_r1_2", next: "w_r3_1", nextPos: "low" },
+        { id: "w_r2_3", conf: "west", high: 3, lowSrc: "w_r1_3", next: "w_r3_2", nextPos: "high" },
+        { id: "w_r2_4", conf: "west", high: 2, lowSrc: "w_r1_4", next: "w_r3_2", nextPos: "low" },
+        { id: "e_r2_1", conf: "east", high: 1, lowSrc: "e_r1_1", next: "e_r3_1", nextPos: "high" },
+        { id: "e_r2_2", conf: "east", high: 4, lowSrc: "e_r1_2", next: "e_r3_1", nextPos: "low" },
+        { id: "e_r2_3", conf: "east", high: 3, lowSrc: "e_r1_3", next: "e_r3_2", nextPos: "high" },
+        { id: "e_r2_4", conf: "east", high: 2, lowSrc: "e_r1_4", next: "e_r3_2", nextPos: "low" },
+    ];
+
+    // Round 3 (Conf Semis)
+    const round3Matches = [
+        { id: "w_r3_1", conf: "west", highSrc: "w_r2_1", lowSrc: "w_r2_2", next: "w_r4_1", nextPos: "high" },
+        { id: "w_r3_2", conf: "west", highSrc: "w_r2_3", lowSrc: "w_r2_4", next: "w_r4_1", nextPos: "low" },
+        { id: "e_r3_1", conf: "east", highSrc: "e_r2_1", lowSrc: "e_r2_2", next: "e_r4_1", nextPos: "high" },
+        { id: "e_r3_2", conf: "east", highSrc: "e_r2_3", lowSrc: "e_r2_4", next: "e_r4_1", nextPos: "low" },
+    ];
+
+    // Round 4 (Conf Finals)
+    const round4Matches = [
+        { id: "w_r4_1", conf: "west", highSrc: "w_r3_1", lowSrc: "w_r3_2", next: "f_r5_1", nextPos: "high" },
+        { id: "e_r4_1", conf: "east", highSrc: "e_r3_1", lowSrc: "e_r3_2", next: "f_r5_1", nextPos: "low" },
+    ];
+
+    // Round 5 (Finals)
+    const round5Matches = [
+        { id: "f_r5_1", conf: "final", highSrc: "w_r4_1", lowSrc: "e_r4_1", next: null }
+    ];
+
+    // --- INITIALIZATION ---
+    function init() {
+        renderRound1();
+    }
+
+    function getName(conf, seed) {
+        if(conf === 'final') return seed; // Logic handled elsewhere
+        return conferences[conf].seeds[seed];
+    }
+
+    // --- RENDERERS ---
+
+    function createMatchupHTML(id, team1, team2, bestOf, nextRoundId) {
+        const scores = bestOf === 5 ? scoresBo5 : scoresBo7;
+        const options = scores.map(s => `<option value="${s}">${s}</option>`).join('');
+        
+        return `
+        <div class="matchup-card" id="card-${id}">
+            <span class="matchup-title">Series ID: ${id}</span>
+            <label>Winner</label>
+            <select onchange="updateBracket('${id}', '${nextRoundId}', this.value)" id="pick-${id}">
+                <option value="">-- Select Winner --</option>
+                <option value="${team1.seed}|${team1.conf}">${team1.seed}. ${team1.name}</option>
+                <option value="${team2.seed}|${team2.conf}">${team2.seed}. ${team2.name}</option>
+            </select>
+            <label>Series Score</label>
+            <select id="score-${id}">
+                ${options}
+            </select>
+        </div>`;
+    }
+
+    function renderRound1() {
+        const container = document.getElementById('r1-container');
+        let html = '';
+        round1Matches.forEach(m => {
+            const t1 = { seed: m.high, name: getName(m.conf, m.high), conf: m.conf };
+            const t2 = { seed: m.low, name: getName(m.conf, m.low), conf: m.conf };
+            html += createMatchupHTML(m.id, t1, t2, 5, 'r2');
+        });
+        container.innerHTML = html;
+    }
+
+    // --- LOGIC UPDATES ---
+
+    function updateBracket(matchId, triggerNextLevel) {
+        // Save Pick
+        const winnerVal = document.getElementById(`pick-${matchId}`).value;
+        const scoreVal = document.getElementById(`score-${matchId}`).value;
+        
+        if(!winnerVal) return;
+
+        const [seed, conf] = winnerVal.split('|');
+        picks[matchId] = { seed: parseInt(seed), conf: conf, score: scoreVal };
+
+        // Check if round is complete to unlock next
+        if(triggerNextLevel === 'r2') checkRoundComplete(round1Matches, renderRound2, 'r2-section');
+        if(triggerNextLevel === 'r3') checkRoundComplete(round2Matches, renderRound3, 'r3-section');
+        if(triggerNextLevel === 'r4') checkRoundComplete(round3Matches, renderRound4, 'r4-section');
+        if(triggerNextLevel === 'r5') checkRoundComplete(round4Matches, renderRound5, 'r5-section');
+    }
+
+    function checkRoundComplete(matches, renderFn, sectionId) {
+        const allPicked = matches.every(m => picks[m.id]);
+        if(allPicked) {
+            renderFn();
+            const sec = document.getElementById(sectionId);
+            sec.style.opacity = "1";
+            sec.style.pointerEvents = "all";
+        }
+    }
+
+    function renderRound2() {
+        const container = document.getElementById('r2-container');
+        let html = '';
+        round2Matches.forEach(m => {
+            // High seed is waiting
+            const t1 = { seed: m.high, name: getName(m.conf, m.high), conf: m.conf };
+            // Low seed comes from prev round
+            const prevPick = picks[m.lowSrc];
+            const t2 = { seed: prevPick.seed, name: getName(prevPick.conf, prevPick.seed), conf: prevPick.conf };
+            html += createMatchupHTML(m.id, t1, t2, 7, 'r3');
+        });
+        container.innerHTML = html;
+    }
+
+    function renderRound3() {
+        const container = document.getElementById('r3-container');
+        let html = '';
+        round3Matches.forEach(m => {
+            const p1 = picks[m.highSrc];
+            const t1 = { seed: p1.seed, name: getName(p1.conf, p1.seed), conf: p1.conf };
+            const p2 = picks[m.lowSrc];
+            const t2 = { seed: p2.seed, name: getName(p2.conf, p2.seed), conf: p2.conf };
+            html += createMatchupHTML(m.id, t1, t2, 7, 'r4');
+        });
+        container.innerHTML = html;
+    }
+
+    function renderRound4() {
+        const container = document.getElementById('r4-container');
+        let html = '';
+        round4Matches.forEach(m => {
+            const p1 = picks[m.highSrc];
+            const t1 = { seed: p1.seed, name: getName(p1.conf, p1.seed), conf: p1.conf };
+            const p2 = picks[m.lowSrc];
+            const t2 = { seed: p2.seed, name: getName(p2.conf, p2.seed), conf: p2.conf };
+            html += createMatchupHTML(m.id, t1, t2, 7, 'r5');
+        });
+        container.innerHTML = html;
+    }
+
+    function renderRound5() {
+        const container = document.getElementById('r5-container');
+        let html = '';
+        round5Matches.forEach(m => {
+            const p1 = picks[m.highSrc]; // West Champ
+            const t1 = { seed: p1.seed, name: getName(p1.conf, p1.seed), conf: p1.conf };
+            const p2 = picks[m.lowSrc]; // East Champ
+            const t2 = { seed: p2.seed, name: getName(p2.conf, p2.seed), conf: p2.conf };
+            html += createMatchupHTML(m.id, t1, t2, 7, 'end');
+        });
+        container.innerHTML = html;
+    }
+
+    // --- EXPORT/IMPORT ---
+
+    function generateCode() {
+        // Ensure finals are picked
+        if(!picks['f_r5_1']) {
+            alert("Please complete the entire bracket first.");
+            return;
+        }
+        // Force update the final pick just in case
+        const finalSelect = document.getElementById('pick-f_r5_1');
+        const finalScore = document.getElementById('score-f_r5_1');
+        const [seed, conf] = finalSelect.value.split('|');
+        picks['f_r5_1'] = { seed: parseInt(seed), conf: conf, score: finalScore.value };
+
+        const json = JSON.stringify(picks);
+        const code = btoa(json); // Simple Base64 encoding
+        
+        const resBox = document.getElementById('export-result');
+        resBox.style.display = 'block';
+        resBox.innerText = code;
+    }
+
+    function switchTab(tab) {
+        document.querySelectorAll('.tab-content').forEach(d => d.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+        document.getElementById(tab).classList.add('active');
+        // Find the button with onclick containing the tab name
+        const btns = document.getElementsByClassName('tab-btn');
+        for(let b of btns) {
+            if(b.getAttribute('onclick').includes(tab)) b.classList.add('active');
+        }
+    }
+
+    // --- SCORING ENGINE ---
+
+    function calculateScore() {
+        const pCode = document.getElementById('player-code').value.trim();
+        const rCode = document.getElementById('perfect-code').value.trim();
+
+        if(!pCode || !rCode) {
+            alert("Please enter both codes.");
+            return;
+        }
+
+        try {
+            const playerPicks = JSON.parse(atob(pCode));
+            const realPicks = JSON.parse(atob(rCode));
+            
+            let totalScore = 0;
+            let log = "<ul>";
+
+            // Helper to check match
+            const checkMatch = (id, roundName, roundVal) => {
+                if(!playerPicks[id] || !realPicks[id]) return;
+
+                const p = playerPicks[id];
+                const r = realPicks[id];
+                const pTeam = `${p.seed} ${p.conf}`;
+                const rTeam = `${r.seed} ${r.conf}`;
+
+                if(pTeam === rTeam) {
+                    // Correct Winner
+                    let pts = 1; 
+                    let note = `Correct Winner (${getName(p.conf, p.seed)})`;
+                    
+                    // Bonuses based on rounds
+                    if(id.includes('r3')) { pts += 2; note += " + Conference Finalist Bonus (2pts)"; } // Round 3 winners go to Conf Finals
+                    if(id.includes('r4')) { pts += 3; note += " + Finalist Bonus (3pts)"; } // Round 4 winners go to Finals
+                    if(id.includes('r5')) { pts = 4; note = "CHAMPION PREDICTED (4pts)"; } // Override for champ
+
+                    // Series Score Bonus
+                    if(p.score === r.score) {
+                        pts += 3;
+                        note += " + Exact Score Bonus (3pts)";
+                    }
+
+                    totalScore += pts;
+                    log += `<li><strong>${roundName}:</strong> ${note} (+${pts})</li>`;
+                }
+            };
+
+            // Iterate rounds
+            // Round 1
+            round1Matches.forEach(m => checkMatch(m.id, "Round 1", 1));
+            // Round 2
+            round2Matches.forEach(m => checkMatch(m.id, "Round 2", 1));
+            // Round 3 (Winners are Conf Finalists)
+            round3Matches.forEach(m => checkMatch(m.id, "Round 3", 1));
+            // Round 4 (Winners are Finalists)
+            round4Matches.forEach(m => checkMatch(m.id, "Conf Finals", 1));
+            // Finals
+            checkMatch("f_r5_1", "League Finals", 1);
+
+            log += "</ul>";
+            
+            document.getElementById('final-score').innerText = totalScore;
+            document.getElementById('score-breakdown').innerHTML = log;
+            document.getElementById('score-output').style.display = 'block';
+
+        } catch (e) {
+            alert("Invalid Code entered. Please check your inputs.");
+            console.error(e);
+        }
+    }
+
+    // Run Init
+    init();
+
+</script>
+</body>
+</html>
